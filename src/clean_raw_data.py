@@ -17,7 +17,7 @@ countries = [
     "Sudan Del Sur",
     "Corea Del Norte",
     "Indochina Francesa",
-    "Republica Dominicana",
+    "Republica",
     "Cabo Verde",
     "Republica Checa",
     "Gran Bretaña",
