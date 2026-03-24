@@ -1,13 +1,23 @@
-import io
-
 import pandas as pd
 from google.cloud import storage
+from prefect import task
+from prefect_gcp.cloud_storage import GcsBucket
+import io
 
-
-def read_csv_from_gcs(bucket_name, source_blob_name):
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
-    data = blob.download_as_bytes()
-    df = pd.read_csv(io.BytesIO(data))
+@task
+async def read_csv_from_gcs(bucket_block_name, source_blob_name):
+    # Cargamos el bloque de Prefect (el mismo que usas para subir)
+    gcs_bucket_block = await GcsBucket.load(bucket_block_name)
+    
+    # Descargamos el contenido como bytes usando el bloque
+    content = await gcs_bucket_block.read_path(source_blob_name)
+    df = pd.read_csv(io.BytesIO(content))
     return df
+
+# def read_csv_from_gcs(bucket_name, source_blob_name):
+#     storage_client = storage.Client()
+#     bucket = storage_client.bucket(bucket_name)
+#     blob = bucket.blob(source_blob_name)
+#     data = blob.download_as_bytes()
+#     df = pd.read_csv(io.BytesIO(data))
+#     return df

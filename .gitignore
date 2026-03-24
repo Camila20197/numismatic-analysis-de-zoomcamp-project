@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/macos,python,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,python,visualstudiocode
 
+.env
+.venv
+
 ### macOS ###
 # General
 .DS_Store
@@ -228,3 +231,23 @@ pyrightconfig.json
 *.csv
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,visualstudiocode
+# === AGREGA ESTO AL FINAL DE TU .gitignore ===
+
+*.json
+!package.json
+!pyrightconfig.json
+credentials.json
+service-account*.json
+*-key.json
+*-credentials.json
+
+# === OTROS FORMATOS DE CREDENCIALES ===
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# === ARCHIVOS DE SECRETOS LOCALES ===
+secrets/
+config/secrets.*
