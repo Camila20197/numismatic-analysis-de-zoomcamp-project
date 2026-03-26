@@ -1,8 +1,9 @@
 name: Get money bill's data
 
 on:
-  schedule:
-    - cron: '47,50,53 * * * *'
+    workflow_dispatch:
+ # schedule:
+  #  - cron: '47,50,53 * * * *'
 # on:
 #   push:
 #     branches:
