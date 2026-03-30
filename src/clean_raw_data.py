@@ -478,7 +478,9 @@ def clean_price(price: str) -> Optional[float]:
     
 def generate_primary_key(title: str, link: str, country: str = None, year: int = None) -> str:
     """
-    Generate a unique deterministic primary key using MD5 hash.
+    Generate a unique deterministic product key using MD5 hash.
+    This ID identifies the PRODUCT, not the price snapshot.
+    The same product will always generate the same ID across runs.
     
     Args:
         title (str): Product title
@@ -487,7 +489,7 @@ def generate_primary_key(title: str, link: str, country: str = None, year: int =
         year (int, optional): Year
         
     Returns:
-        str: Primary key in format "COUNTRY_YEAR_HASH"
+        str: Product key in format "COUNTRY_YEAR_HASH"
         
     Examples:
         >>> generate_primary_key("Cuba Billete...", "https://...", "Cuba", 1959)
@@ -501,6 +503,98 @@ def generate_primary_key(title: str, link: str, country: str = None, year: int =
     unique_hash = hashlib.md5(unique_string.encode()).hexdigest()
     
     return f"{country_code}_{year_str}_{unique_hash}"
+ 
+ 
+def generate_snapshot_id(product_id: str, scraped_at: str) -> str:
+    """
+    Generate a unique ID for each price snapshot (product + date).
+    This allows tracking price changes over time for the same product.
+    
+    Args:
+        product_id (str): The product's stable ID (from generate_primary_key)
+        scraped_at (str): ISO timestamp of when the snapshot was taken
+        
+    Returns:
+        str: Snapshot ID in format "PRODUCT_ID_YYYYMMDD"
+        
+    Examples:
+        >>> generate_snapshot_id("CUB_1959_abc123", "2024-03-15T10:30:00")
+        'CUB_1959_abc123_20240315'
+    """
+    date_str = scraped_at[:10].replace("-", "")  # "YYYY-MM-DD" -> "YYYYMMDD"
+    return f"{product_id}_{date_str}"
+ 
+def load_existing_snapshot_ids(bucket: str, clean_path: str) -> set:
+    """
+    Load existing snapshot IDs from the clean dataset in GCS.
+    A snapshot ID = product_id + date, so the same product can appear
+    multiple times (once per scraping day) to track price changes.
+    
+    Returns:
+        set: Existing snapshot IDs to avoid re-inserting the same
+             product+date combination on retries or duplicate runs.
+    """
+    try:
+        df_existing = read_csv_from_gcs(bucket, clean_path)
+        if 'snapshot_id' in df_existing.columns:
+            existing_snapshot_ids = set(df_existing['snapshot_id'].tolist())
+            print(f"Found {len(existing_snapshot_ids)} existing snapshots "
+                  f"({df_existing['id'].nunique()} unique products)")
+            return existing_snapshot_ids
+        else:
+            print("No 'snapshot_id' column found — treating as first run")
+            return set()
+    except Exception as e:
+        print(f"No existing clean data found or error: {e}")
+        return set()
+ 
+ 
+def add_snapshot_columns(df: pd.DataFrame, scraped_at: str) -> pd.DataFrame:
+    """
+    Add snapshot tracking columns to a transformed DataFrame.
+    
+    - scraped_at : ISO timestamp of this scraping run
+    - snapshot_id: unique ID per product per day (product_id + date)
+                   Prevents duplicate inserts if the flow runs twice in a day.
+    
+    Args:
+        df (pd.DataFrame): Transformed DataFrame that already has an 'id' column
+        scraped_at (str): ISO timestamp string, e.g. "2024-03-15T10:30:00"
+        
+    Returns:
+        pd.DataFrame: Same DataFrame with two new columns prepended
+    """
+    df = df.copy()
+    df["scraped_at"] = scraped_at
+    df["snapshot_id"] = df["id"].apply(
+        lambda product_id: generate_snapshot_id(product_id, scraped_at)
+    )
+    return df
+
+def filter_new_snapshots(df_new: pd.DataFrame, existing_snapshot_ids: set) -> pd.DataFrame:
+    """
+    Filter out snapshots that were already stored.
+    
+    Because snapshot_id = product_id + date, this only removes duplicates
+    from the SAME day (e.g. if the flow ran twice). Price changes on
+    different days are preserved as separate rows.
+    
+    Args:
+        df_new (pd.DataFrame): New snapshots with 'snapshot_id' column
+        existing_snapshot_ids (set): Snapshot IDs already in GCS
+        
+    Returns:
+        pd.DataFrame: Only truly new snapshots
+    """
+    if len(existing_snapshot_ids) == 0:
+        print("First run — keeping all snapshots.")
+        return df_new
+ 
+    df_filtered = df_new[~df_new['snapshot_id'].isin(existing_snapshot_ids)]
+    duplicates = len(df_new) - len(df_filtered)
+    print(f"Skipped {duplicates} already-stored snapshots. "
+          f"Adding {len(df_filtered)} new snapshots.")
+    return df_filtered
 
 
 # ============================================================================
@@ -589,9 +683,10 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["Price"])
     
     column_order = [
-        'id', 'Country', 'Status', 'War', 'DenomValue', 'DenomUnit',
+        'idSnapshot', 'id', 'ScrapedAt',
+        'Country', 'Status', 'War', 'DenomValue', 'DenomUnit',
         'Year', 'Century', 'Condition', 'Series', 'ExtraTags',
-        'Price', 'title', 'link'
+        'Price'
     ]
     
     existing_cols = [col for col in column_order if col in df.columns]
@@ -603,24 +698,54 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
 @flow
 async def clean_data_flow():
     """
-    Main ETL flow for numismatic data processing.
+    Main ETL flow for numismatic data processing (price history mode).
     
-    This flow:
-        1. Loads raw data from Google Cloud Storage
-        2. Transforms and extracts structured information
-        3. Checks product availability
-        4. Saves cleaned data locally and to GCS
+    Each run appends a new snapshot of all current prices instead of
+    overwriting. This allows tracking how prices change over time.
+    
+    Flow:
+        1. Record the current timestamp (all rows in this run share it)
+        2. Load raw data from GCS
+        3. Transform and extract structured fields
+        4. Add snapshot columns (scraped_at, snapshot_id)
+        5. Filter out any snapshots already stored (idempotency guard)
+        6. Append new snapshots to the existing clean dataset in GCS
         
     Returns:
-        pd.DataFrame: Cleaned and transformed data
+        pd.DataFrame: Only the newly added snapshots
     """
     
-    df = await load_raw_data(BUCKET_NAME, SOURCE_BLOB_NAME)
-    print(df.head())
-    df_result = transform_data(df)
+    # Single timestamp shared by all rows in this run
+    scraped_at = datetime.utcnow().isoformat()
+    print(f"Starting scraping run: {scraped_at}")
     
-    df_result.to_csv("billetes_clean.csv", index=False)
-    return df_result
+    df_raw = await load_raw_data(BUCKET_NAME, SOURCE_BLOB_NAME)
+    existing_snapshot_ids = load_existing_snapshot_ids(BUCKET_NAME, NUMISMATIC_CLEAN)
+    
+    df_transformed = transform_data(df_raw)
+    df_with_snapshots = add_snapshot_columns(df_transformed, scraped_at)
+    df_new_snapshots = filter_new_snapshots(df_with_snapshots, existing_snapshot_ids)
+    
+    if len(df_new_snapshots) == 0:
+        print("No new snapshots to add. This run was likely already processed today.")
+        return df_new_snapshots
+    
+    # Append to existing clean data (or create it on first run)
+    if len(existing_snapshot_ids) > 0:
+        try:
+            df_existing = read_csv_from_gcs(BUCKET_NAME, NUMISMATIC_CLEAN)
+            df_final = pd.concat([df_existing, df_new_snapshots], ignore_index=True)
+            print(f"Total snapshots after update: {len(df_final)} "
+                  f"({df_final['id'].nunique()} unique products)")
+        except Exception as e:
+            print(f"Error loading existing data: {e}. Creating new file with current run.")
+            df_final = df_new_snapshots
+    else:
+        df_final = df_new_snapshots
+        print(f"First run — storing {len(df_final)} snapshots.")
+    
+    await upload_csv_to_gcs(BUCKET_NAME, "billetes_clean.csv", NUMISMATIC_CLEAN)
+    return df_new_snapshots
 
 # ============================================================================
 # MAIN EXECUTION

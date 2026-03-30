@@ -26,6 +26,10 @@ jobs:
         version: "0.6.2"
     - name: Install the project
       run: uv sync --locked --all-extras --dev
+    - name: Configure Google Cloud Credentials
+      run: |
+          echo "${{ secrets.GCP_SA_KEY }}" > gcs-credentials.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcs-credentials.json" >> $GITHUB_ENV
     - name: Prefect Cloud login
       run: |
         uv run prefect config set PREFECT_API_KEY=${{secrets.PREFECT_API_KEY}} 
@@ -36,3 +40,7 @@ jobs:
           NUMISMATIC_RAW: ${{ secrets.NUMISMATIC_RAW }}
       run: |
         uv run src/get_raw_data.py
+    - name: Cleanup Credentials
+      if: always()
+      run: |
+          rm -f gcs-credentials.json          

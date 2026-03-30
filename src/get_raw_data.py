@@ -26,16 +26,22 @@ async def main():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
     }
 
+    page = 1
+    max_pages = 100  # Set this to the maximum number of pages to avoid infinite loops
     async with aiohttp.ClientSession(headers=headers) as session:
-        # Create a list of tasks, each one getting data for a specific page
-        tasks = [get_data(session, url, i) for i in range(1, 10)]
-
-        # Run all tasks concurrently, but the semaphore will limit how many run at the same time
-        await asyncio.gather(*tasks, return_exceptions=True)
+        while page <= max_pages:
+            has_products = await get_data(session, url, page)
+            
+            if not has_products:
+                print(f"No more products found after page {page-1}. Stopping.")
+                break
+            
+            page += 1
+            await asyncio.sleep(1)
 
     # After all tasks are done, save the data to a CSV file
     df = pd.DataFrame.from_dict(products_list)
-    df.to_csv("billetes.csv", index=False)
+    #df.to_csv("billetes.csv", index=False)
     await upload_csv_to_gcs(BUCKET_NAME, "billetes.csv", SOURCE_BLOB_NAME)
 
 
@@ -56,6 +62,11 @@ async def get_data(session, url, page):
                 products = soup.find_all(
                     "div", class_="box-text box-text-products text-center grid-style-2"
                 )
+                
+                if len(products) == 0:
+                    print(f"Page {page} is empty. No more products.")
+                    return False 
+                
                 print(f"currently in page {page}")
 
                 for product in products:
@@ -81,6 +92,7 @@ async def get_data(session, url, page):
 
                     products_dict = {"title": title, "price": price, "link": link}
                     products_list.append(products_dict)
+                return True  # Return True if products were found and processed
         except aiohttp.ClientResponseError as e:
             print(f"HTTP Error on page {page}: {e}")
         except Exception as e:
