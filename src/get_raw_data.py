@@ -5,7 +5,7 @@ import aiohttp
 import pandas as pd
 from bs4 import BeautifulSoup
 from prefect import flow, task
-
+from prefect.cache_policies import NO_CACHE
 from gc_utility.upload_data import upload_csv_to_gcs
 
 BUCKET_NAME = os.getenv("NUMISMATIC_BUCKET")
@@ -45,7 +45,7 @@ async def main():
     await upload_csv_to_gcs(BUCKET_NAME, "billetes.csv", SOURCE_BLOB_NAME)
 
 
-@task(retries=3, retry_delay_seconds=10)
+@task(retries=3, retry_delay_seconds=10, cache_policy=NO_CACHE)
 async def get_data(session, url, page):
     """Task to fetch and parse data from a single page."""
     # Use the semaphore to acquire a slot; this will block if the limit is reached

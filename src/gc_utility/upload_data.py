@@ -1,16 +1,22 @@
+import io
+import pandas as pd
 from google.cloud import storage
 from prefect import task
 from prefect_gcp import GcsBucket
+from prefect.cache_policies import NO_CACHE
 
-
-@task
-async def upload_csv_to_gcs(bucket_name, source_file_path, gcs_key):
+@task(cache_policy=NO_CACHE)
+async def upload_csv_to_gcs(bucket_name: str, df: pd.DataFrame, gcs_key: str):
     
     # old way before using prefect
+    buffer = io.StringIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(gcs_key)
-    blob.upload_from_filename(source_file_path)
+    blob.upload_from_string(buffer.getvalue(), content_type="text/csv")
+    #blob.upload_from_filename(source_file_path)
     
     
     # gcs_bucket_block = await GcsBucket.load(bucket_name)
