@@ -1,11 +1,10 @@
 import pandas as pd
 from google.cloud import storage
 from prefect import task
-from prefect_gcp.cloud_storage import GcsBucket
 import io
 
 @task
-async def read_csv_from_gcs(bucket_name, source_blob_name):
+async def read_csv_from_gcs(bucket_name: str, source_blob_name: str) -> pd.DataFrame:
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
