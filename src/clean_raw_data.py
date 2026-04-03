@@ -744,6 +744,7 @@ async def clean_data_flow():
         df_final = df_new_snapshots
         print(f"First run — storing {len(df_final)} snapshots.")
     
+    df_final.to_csv("billetes_clean.csv", index=False)
     await upload_csv_to_gcs(BUCKET_NAME, "billetes_clean.csv", NUMISMATIC_CLEAN)
     return df_new_snapshots
 
