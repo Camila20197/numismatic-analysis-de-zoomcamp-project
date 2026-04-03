@@ -45,9 +45,3 @@ jobs:
       if: always()
       run: |
           rm -f gcs-credentials.json          
-    - name: Debug — ver qué ejecuta el runner
-      run: |
-        echo "=== upload_data.py ==="
-        cat src/gc_utility/upload_data.py
-        echo "=== get_raw_data.py linea 39 ==="
-        sed -n '37,41p' src/get_raw_data.py
