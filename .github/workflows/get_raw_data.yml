@@ -28,8 +28,10 @@ jobs:
     - name: Install the project
       run: uv sync --locked --all-extras --dev
     - name: Configure Google Cloud Credentials
+      env: 
+        JSON_KEY: ${{ secrets.GCP_SA_KEY }}
       run: |
-          echo "${{ secrets.GCP_SA_KEY }}" > gcs-credentials.json
+          echo "$JSON_KEY" > gcs-credentials.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcs-credentials.json" >> $GITHUB_ENV
     - name: Prefect Cloud login
       run: |
