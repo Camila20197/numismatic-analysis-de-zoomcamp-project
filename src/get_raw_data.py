@@ -42,9 +42,8 @@ async def main():
     # After all tasks are done, save the data to a CSV file
     df = pd.DataFrame.from_dict(products_list)
     #df.to_csv("billetes.csv", index=False)
-    #await upload_csv_to_gcs(BUCKET_NAME, "billetes.csv", SOURCE_BLOB_NAME)
-    await upload_csv_to_gcs(BUCKET_NAME, df, SOURCE_BLOB_NAME)
-
+    await upload_csv_to_gcs(BUCKET_NAME, "billetes.csv", SOURCE_BLOB_NAME)
+    
 
 @task(retries=3, retry_delay_seconds=10, cache_policy=NO_CACHE)
 async def get_data(session, url, page):
