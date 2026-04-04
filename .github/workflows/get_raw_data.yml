@@ -39,5 +39,6 @@ jobs:
       env:
           NUMISMATIC_BUCKET: ${{ secrets.NUMISMATIC_BUCKET }}
           NUMISMATIC_RAW: ${{ secrets.NUMISMATIC_RAW }}
+          NUMISMATIC_CLEAN: ${{ secrets.NUMISMATIC_CLEAN }}
       run: |
         uv run src/get_raw_data.py
