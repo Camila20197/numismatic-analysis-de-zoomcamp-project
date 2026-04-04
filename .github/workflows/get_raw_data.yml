@@ -42,3 +42,4 @@ jobs:
           NUMISMATIC_CLEAN: ${{ secrets.NUMISMATIC_CLEAN }}
       run: |
         uv run src/get_raw_data.py
+        uv run src/clean_raw_data.py
