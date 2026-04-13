@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: numismatic_raw
+    database: numismatic-analytics
+    schema: numismatic_data
+    tables:
+      - name: raw_banknotes

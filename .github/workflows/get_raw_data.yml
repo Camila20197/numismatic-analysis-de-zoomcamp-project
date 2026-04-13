@@ -1,13 +1,12 @@
 name: Get money bill's data
 
 on:
-    workflow_dispatch:
- # schedule:
-  #  - cron: '47,50,53 * * * *'
-# on:
-#   push:
-#     branches:
-#       - run-prefect-with-actions
+  workflow_dispatch:
+  schedule:
+    - cron: '30 11 1,15 * *' 
+  push:
+    branches:
+      - run-prefect-with-actions
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -39,7 +38,35 @@ jobs:
       env:
           NUMISMATIC_BUCKET: ${{ secrets.NUMISMATIC_BUCKET }}
           NUMISMATIC_RAW: ${{ secrets.NUMISMATIC_RAW }}
-          NUMISMATIC_CLEAN: ${{ secrets.NUMISMATIC_CLEAN }}
       run: |
         uv run src/get_raw_data.py
-        uv run src/clean_raw_data.py
+        uv run src/clean_raw_data.py     
+    - name: Instalar dbt-bigquery
+      run: uv tool install dbt-core --with dbt-bigquery
+
+    - name: Create Google credentials file
+      run: |
+        echo '${{ secrets.GCP_SA_KEY }}' > gcp-key.json
+
+    - name: Configure dbt profile for CI
+      run: |
+        mkdir -p ~/.dbt
+        echo "
+        transform_numismatic:
+          target: dev
+          outputs:
+            dev:
+              type: bigquery
+              method: service-account
+              project: numismatic-analytics
+              dataset: dbt_camila
+              threads: 4
+              keyfile: ${{ github.workspace }}/gcp-key.json
+              location: US
+        " > ~/.dbt/profiles.yml
+
+    - name: Execute dbt transformations
+      run: |
+        cd transform_numismatic
+        dbt deps
+        dbt build

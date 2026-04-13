@@ -38,6 +38,9 @@ HISTORICAL_ENTITIES = {
     "República Democrática Alemana": "Non-existent",
     "Ciudad Libre de Danzig": "Non-existent",
     "Sarre": "Non-existent",
+    "Imperio Ruso": "Non-existent",
+    "Bohemia y Moravia": "Non-existent", 
+    "Estado Libre Irlandés": "Non-existent",
 
     # America
     "Gran Colombia": "Non-existent",
@@ -48,15 +51,22 @@ HISTORICAL_ENTITIES = {
     "Antillas Neerlandesas": "Historical Colony",
     "Guyana Británica": "Historical Colony",
     "Honduras Británica": "Historical Colony",
+    "Guayana Holandesa": "Historical Colony", 
+    "Indias Occidentales Danesas": "Historical Colony",
+    "Terranova": "Historical Colony", 
 
     # Asia and Oceanía
     "Indochina Francesa": "Historical Colony",
     "Indias Orientales Neerlandesas": "Historical Colony",
-    "Vietnam del Sur": "Non-existent Entity",
+    "Vietnam del Sur": "Non-existent",
     "Siam": "Non-existent",
     "Ceilán": "Non-existent",
     "Nueva Guinea Alemana": "Historical Colony",
     "Estrechos de Malaca": "Historical Colony",
+    "Malaya y Borneo Británico": "Historical Colony",
+    "Malaya": "Historical Colony",
+    "Birmania": "Non-existent", 
+    "Sarawak": "Historical Colony",
 
     # Africa
     "Zaire": "Non-existent",
@@ -70,7 +80,11 @@ HISTORICAL_ENTITIES = {
     "Tanganica": "Non-existent",
     "Zanzíbar": "Non-existent",
     "Unión Sudafricana": "Non-existent",
-    "Alto Volta": "Non-existent" 
+    "Alto Volta": "Non-existent",
+    "Ruanda-Urundi": "Historical Colony",
+    "Dahomey": "Non-existent", 
+    "África Oriental Italiana": "Historical Colony",
+    "África del Sudoeste": "Historical Colony" 
 }
 
 WAR_KEYWORDS = [
@@ -128,6 +142,10 @@ UNIT_SINGULAR_MAP = {
     'cents': 'Cent',
     'euros': 'Euro',
     'centimos': 'Centimo',
+    'australes': 'Austral',
+    'intis': 'Inti',
+    'centesimos': 'Centesimo', 
+    'peniques': 'Penique',
     
     # English
     'marks': 'Mark',
@@ -139,6 +157,9 @@ UNIT_SINGULAR_MAP = {
     'pennies': 'Penny',
     'kopeks': 'Kopek',
     'kopecks': 'Kopek',
+    'dinars': 'Dinar', 
+    'rupees': 'Rupee',
+    'annas': 'Anna',   
     
     # Others 
     'cruzeiros': 'Cruzeiro',
@@ -182,6 +203,13 @@ UNIT_SINGULAR_MAP = {
     'pula': 'Pula',
     'leu': 'Leu',
     'lei': 'Leu',
+    'zlotych': 'Zloty',     
+    'kune': 'Kuna',         
+    'schillinge': 'Schilling', 
+    'leva': 'Lev',          
+    'centesimi': 'Centesimo', 
+    'centimes': 'Centime',  
+    'paras': 'Para',        
 }
 
 # Complete list of possible tags (ordered by priority)
@@ -524,30 +552,6 @@ def generate_snapshot_id(product_id: str, scraped_at: str) -> str:
     date_str = scraped_at[:10].replace("-", "")  # "YYYY-MM-DD" -> "YYYYMMDD"
     return f"{product_id}_{date_str}"
  
-def load_existing_snapshot_ids(bucket: str, clean_path: str) -> set:
-    """
-    Load existing snapshot IDs from the clean dataset in GCS.
-    A snapshot ID = product_id + date, so the same product can appear
-    multiple times (once per scraping day) to track price changes.
-    
-    Returns:
-        set: Existing snapshot IDs to avoid re-inserting the same
-             product+date combination on retries or duplicate runs.
-    """
-    try:
-        df_existing = read_csv_from_gcs(bucket, clean_path)
-        if 'snapshot_id' in df_existing.columns:
-            existing_snapshot_ids = set(df_existing['snapshot_id'].tolist())
-            print(f"Found {len(existing_snapshot_ids)} existing snapshots "
-                  f"({df_existing['id'].nunique()} unique products)")
-            return existing_snapshot_ids
-        else:
-            print("No 'snapshot_id' column found — treating as first run")
-            return set()
-    except Exception as e:
-        print(f"No existing clean data found or error: {e}")
-        return set()
- 
  
 def add_snapshot_columns(df: pd.DataFrame, scraped_at: str) -> pd.DataFrame:
     """
@@ -570,31 +574,6 @@ def add_snapshot_columns(df: pd.DataFrame, scraped_at: str) -> pd.DataFrame:
         lambda product_id: generate_snapshot_id(product_id, scraped_at)
     )
     return df
-
-def filter_new_snapshots(df_new: pd.DataFrame, existing_snapshot_ids: set) -> pd.DataFrame:
-    """
-    Filter out snapshots that were already stored.
-    
-    Because snapshot_id = product_id + date, this only removes duplicates
-    from the SAME day (e.g. if the flow ran twice). Price changes on
-    different days are preserved as separate rows.
-    
-    Args:
-        df_new (pd.DataFrame): New snapshots with 'snapshot_id' column
-        existing_snapshot_ids (set): Snapshot IDs already in GCS
-        
-    Returns:
-        pd.DataFrame: Only truly new snapshots
-    """
-    if len(existing_snapshot_ids) == 0:
-        print("First run — keeping all snapshots.")
-        return df_new
- 
-    df_filtered = df_new[~df_new['snapshot_id'].isin(existing_snapshot_ids)]
-    duplicates = len(df_new) - len(df_filtered)
-    print(f"Skipped {duplicates} already-stored snapshots. "
-          f"Adding {len(df_filtered)} new snapshots.")
-    return df_filtered
 
 
 # ============================================================================
@@ -714,40 +693,33 @@ async def clean_data_flow():
     Returns:
         pd.DataFrame: Only the newly added snapshots
     """
-    
-    # Single timestamp shared by all rows in this run
     scraped_at = datetime.utcnow().isoformat()
     print(f"Starting scraping run: {scraped_at}")
     
+    # 1. Load raw data
     df_raw = await load_raw_data(BUCKET_NAME, SOURCE_BLOB_NAME)
-    existing_snapshot_ids = load_existing_snapshot_ids(BUCKET_NAME, NUMISMATIC_CLEAN)
     
+    # 2. Transform and add snapshot IDs
     df_transformed = transform_data(df_raw)
-    df_with_snapshots = add_snapshot_columns(df_transformed, scraped_at)
-    df_new_snapshots = filter_new_snapshots(df_with_snapshots, existing_snapshot_ids)
+    df_final = add_snapshot_columns(df_transformed, scraped_at)
     
-    if len(df_new_snapshots) == 0:
-        print("No new snapshots to add. This run was likely already processed today.")
-        return df_new_snapshots
+    if len(df_final) == 0:
+        print("No data extracted in this run.")
+        return df_final
     
-    # Append to existing clean data (or create it on first run)
-    if len(existing_snapshot_ids) > 0:
-        try:
-            df_existing = read_csv_from_gcs(BUCKET_NAME, NUMISMATIC_CLEAN)
-            df_final = pd.concat([df_existing, df_new_snapshots], ignore_index=True)
-            print(f"Total snapshots after update: {len(df_final)} "
-                  f"({df_final['id'].nunique()} unique products)")
-        except Exception as e:
-            print(f"Error loading existing data: {e}. Creating new file with current run.")
-            df_final = df_new_snapshots
-    else:
-        df_final = df_new_snapshots
-        print(f"First run — storing {len(df_final)} snapshots.")
+    # 3. Partitioning logic: Create a unique filename based on current date
+    date_str = datetime.utcnow().strftime('%Y%m%d')
+    file_name = f"clean_banknotes_{date_str}.csv"
+    gcs_destination = f"clean/{file_name}"
     
-    df_final.to_csv("billetes_clean.csv", index=False)
-    await upload_csv_to_gcs(BUCKET_NAME, "billetes_clean.csv", NUMISMATIC_CLEAN)
-    return df_new_snapshots
-
+    # 4. Save locally and upload to GCS
+    df_final.to_csv(file_name, index=False)
+    await upload_csv_to_gcs(BUCKET_NAME, file_name, gcs_destination)
+    #await upload_csv_to_gcs(BUCKET_NAME, "billetes_clean.csv", NUMISMATIC_CLEAN)
+    
+    return df_final
+    
+    
 # ============================================================================
 # MAIN EXECUTION
 # ============================================================================

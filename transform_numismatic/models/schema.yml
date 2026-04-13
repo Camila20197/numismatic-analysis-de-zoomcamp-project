@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  # --- DIMENSION TESTS ---
+  - name: dim_banknotes
+    description: "Static dimension table of clean single banknotes"
+    columns:
+      - name: banknote_id
+        description: "Unique ID of each ticket"
+        tests:
+          - unique
+          - not_null
+      - name: Year
+        description: "Year of issue of the banknote."
+        tests:
+          - not_null
+
+  # --- PRICE TESTS ---
+  - name: fact_prices
+    description: "Table of facts with the history of price extractions"
+    columns:
+      - name: snapshot_id
+        description: "unique ID of the price extraction at that moment"
+        tests:
+          - unique
+          - not_null
+      - name: Price
+        description: "The numerical price of the ticket"
+        tests:
+          - not_null
+      - name: banknote_id
+        description: "Ticket ID that connects to the dimension"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_banknotes')
+                field: banknote_id
