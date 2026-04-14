@@ -34,7 +34,7 @@ cleaned_data AS (
         AND TRIM(CAST(Year AS STRING)) != '' 
         
         AND Condition IS NOT NULL
-        AND UPPER(Condition) != 'UNKNOWN'
+        AND UPPER(Condition) != 'UNKOWN'
 ),
 
 unique_banknotes AS (
