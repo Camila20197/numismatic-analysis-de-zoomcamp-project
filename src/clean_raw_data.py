@@ -715,7 +715,6 @@ async def clean_data_flow():
     # 4. Save locally and upload to GCS
     df_final.to_csv(file_name, index=False)
     await upload_csv_to_gcs(BUCKET_NAME, file_name, gcs_destination)
-    #await upload_csv_to_gcs(BUCKET_NAME, "billetes_clean.csv", NUMISMATIC_CLEAN)
     
     return df_final
     
