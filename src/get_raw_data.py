@@ -43,8 +43,10 @@ async def main():
     base_path = Path(__file__).resolve().parent
     file_path = base_path / "billetes.csv"
     
+    #df = pd.DataFrame.from_dict(products_list)
+    #df.to_csv("billetes.csv", index=False)
     df = pd.DataFrame.from_dict(products_list)
-    df.to_csv("billetes.csv", index=False)
+    df.to_csv(file_path, index=False)
     
     await upload_csv_to_gcs(BUCKET_NAME, str(file_path), SOURCE_BLOB_NAME)
     # await upload_csv_to_gcs(BUCKET_NAME, "billetes.csv", SOURCE_BLOB_NAME)

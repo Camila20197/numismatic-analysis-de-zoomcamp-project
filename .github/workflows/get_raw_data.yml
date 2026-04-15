@@ -3,7 +3,7 @@ name: Get money bill's data
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 18 * * *' 
+    - cron: '15 20 * * *' 
   push:
     branches:
       - run-prefect-with-actions
