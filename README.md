@@ -153,6 +153,29 @@ Given that the current parsing logic relies on Regular Expressions (Regex), the 
 
 * Scraper Resilience: Implement rotating User-Agents and dynamic delays to ensure the pipeline remains resilient against anti-scraping measures as the volume of tracked pages increases.
 
+While the current pipeline is fully functional and provides valuable market insights, the following enhancements are planned to ensure long-term scalability and cost-efficiency:
+
+* Transition to Incremental Data Modeling
+Currently, the dbt models (dim_banknotes and fact_prices) utilize a Full Refresh strategy (materialized='table'), which recreates the entire dataset in every run.
+
+    * Goal: Implement Incremental Materialization in dbt.
+
+    * Benefit: Instead of scanning the entire historical bucket, the pipeline will only process newly added CSV files. This will significantly reduce BigQuery processing costs and execution time as the data lake grows over the years.
+
+* Refining Storage Lifecycle & Data Retention
+The current Terraform configuration includes a lifecycle rule that deletes raw files from GCS after 30 days to save space.
+
+    * Goal: Transition from a "Delete" action to an "Archive" or "Cold Storage" strategy.
+
+    * Benefit: This prevents the loss of historical snapshots. By moving older files to colder storage classes (like Nearline or Coldline), we maintain a permanent record of the numismatic market history at a fraction of the cost, ensuring that incremental dbt runs always have access to the full timeline.
+
+* Advanced Anomaly Detection
+With the accumulation of historical price points, the pipeline will become susceptible to market outliers or data entry errors from the source.
+
+    * Goal: Integrate the dbt-expectations package.
+
+    * Benefit: Implementing automated statistical tests to flag "too-good-to-be-true" prices or extreme fluctuations, ensuring the high quality and reliability of the "Highest Record Price" and "Average Market Price" metrics.
+
 ## 🪐 About the Author
 I am a Data Processing and Analytics Engineering student at the Universidad Nacional de Entre Ríos (UNER) in Argentina, with experience in Python, SQL, and data architecture. This project unites my technical skills in Data Engineering with my personal hobby of numismatics.
 
