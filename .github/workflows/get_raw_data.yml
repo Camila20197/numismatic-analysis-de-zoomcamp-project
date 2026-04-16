@@ -3,7 +3,8 @@ name: Get money bill's data
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 11 1,15 * *' # Run on the 1st and 15th of every month at 11:30 AM UTC
+    -  cron: '15 3 * * *'
+    #- cron: '30 11 1,15 * *' # Run on the 1st and 15th of every month at 11:30 AM UTC
   push:
     branches:
       - run-prefect-with-actions
@@ -59,7 +60,7 @@ jobs:
               type: bigquery
               method: service-account
               project: numismatic-analytics
-              dataset: dbt_camila
+              dataset: numismatic_data
               threads: 4
               keyfile: ${{ github.workspace }}/gcp-key.json
               location: US

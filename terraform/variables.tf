@@ -31,3 +31,9 @@ variable "gcs_bucket_name" {
   description = "Mi Bucket de Storage"
   type        = string
 }
+
+variable "gcs_clean_path" {
+  description = "Destination folder for the cleaned data"
+  type        = string
+  default     = "clean" 
+}

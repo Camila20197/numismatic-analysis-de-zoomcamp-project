@@ -34,3 +34,21 @@ resource "google_bigquery_dataset" "dataset" {
   location                   = var.location
   delete_contents_on_destroy = true
 }
+
+resource "google_bigquery_table" "external_raw_banknotes" {
+  dataset_id = google_bigquery_dataset.dataset.dataset_id
+  table_id   = "raw_banknotes"
+
+  external_data_configuration {
+    autodetect    = true
+    source_format = "CSV"
+    
+    source_uris = [
+      "gs://${var.gcs_bucket_name}/${var.gcs_clean_path}/clean_banknotes_*.csv"
+    ]
+    csv_options {
+      quote             = "\""
+      skip_leading_rows = 1
+    }
+  }
+}
