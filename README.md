@@ -28,6 +28,8 @@ The pipeline follows the Modern Data Stack approach:
 6. Automation: GitHub Actions runs the pipeline twice a month (1st and 15th).
 7. Visualization: Looker Studio for interactive dashboards.
 
+![Pipeline Diagram](/diagrams/DE%20Zoomcamp%20Pipeline.jpg)
+
 ## 🖥️ Technologies Used
 
 * Python 3.12 (Scraping and Logic)
@@ -48,15 +50,21 @@ A significant portion of this project relies on robust Python scripting to handl
 
 ## 📖 Data Dictionary
 
-This project utilizes a dimensional modeling approach (Star Schema) to organize the scraped numismatic data efficiently for analysis.
+This project utilizes a dimensional modeling approach, Star Schema, to organize the scraped numismatic data efficiently for analysis.
 
 ### 1. Fact Table: `fact_prices`
-This table acts as the core of our analytical model. It captures the quantitative market data and tracks the valuation of banknotes over time, allowing for historical price analysis.
+This table acts as the core of our analytical model. It captures the quantitative market data and tracks the valuation of banknotes over time, allowing for historical price analysis. The relationship between the tables is defined as follows:
+
+* One-to-Many Relationship (1:N): A single record in dim_banknotes (the parent table) can be associated with multiple records in fact_prices (the child table).
+* Foreign Key Mapping: The banknote_id serves as the primary key in the dimension table and as a foreign key in the fact table.
+
+![Entity Relationship Diagram](/diagrams/DE%20Zomcamp%20ER.jpeg)
+
 
 | Variable | Data Type | Description |
 | :--- | :--- | :--- |
-| `snapshot_id` | `STRING` | Unique identifier for each data extraction event, ensuring accurate time-series tracking and preventing data duplication. |
-| `banknote_id` | `STRING` | Foreign key linking the price record to the specific banknote's descriptive attributes in the dimension table.  |
+| `snapshot_id` | `VARCHAR` | Unique identifier for each data extraction event, ensuring accurate time-series tracking and preventing data duplication. |
+| `banknote_id` | `VARCHAR` | Foreign key linking the price record to the specific banknote's descriptive attributes in the dimension table.  |
 | `Price` | `FLOAT` | The market value of the banknote at the exact time of extraction. |
 | `scraped_at` | `TIMESTAMP` | The exact timestamp when the price data was captured from the source website. |
 
@@ -65,15 +73,15 @@ This dimension table stores all the descriptive, historical, and categorical att
 
 | Variable | Data Type | Description |
 | :--- | :--- | :--- |
-| `banknote_id` | `STRING` | Primary key. A unique identifier for each distinct banknote model in the catalog. |
-| `Country` | `STRING` | The original issuing country or territory of the banknote. |
-| `Status` | `STRING` | The geopolitical status of the issuing entity, derived from historical mapping: Existent, Non-existent, Historical Colony. |
+| `banknote_id` | `VARCHAR` | Primary key. A unique identifier for each distinct banknote model in the catalog. |
+| `Country` | `VARCHAR` | The original issuing country or territory of the banknote. |
+| `Status` | `VARCHAR` | The geopolitical status of the issuing entity, derived from historical mapping: Existent, Non-existent, Historical Colony. |
 | `War` | `BOOLEAN` | A true/false flag indicating whether the banknote was issued during a significant historical conflict or wartime economy. |
-| `Condition` | `STRING` | The numismatic grading of the banknote's physical state |
+| `Condition` | `VARCHAR` | The numismatic grading of the banknote's physical state |
 | `DenomValue` | `FLOAT` | The numerical face value printed on the banknote |
-| `DenomUnit` | `STRING` | The currency denomination unit |
-| `ExtraTags` | `STRING` | Additional numismatic characteristics or metadata extracted from the listing |
-| `Century` | `INTEGER` | The century of issue, utilized for high-level historical grouping and macro-distribution analysis. |
+| `DenomUnit` | `VARCHAR` | The currency denomination unit |
+| `ExtraTags` | `VARCHAR` | Additional numismatic characteristics or metadata extracted from the listing |
+| `Century` | `CHAR` | The century of issue, utilized for high-level historical grouping and macro-distribution analysis. |
 | `Year` | `INTEGER` | The specific year of issue, allowing for granular chronological sorting and filtering. |
 
 
