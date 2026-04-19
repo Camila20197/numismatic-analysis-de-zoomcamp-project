@@ -1,6 +1,23 @@
 # Numismatic Market Analysis Pipeline
 This project is a personal initiative born from a passion for banknote collecting. It implements a complete end-to-end Data Engineering pipeline to monitor and analyze the numismatic market, providing insights into the valuation of collectible currency.
 
+## 📑 Table of Contents
+* [📊 View Interactive Dashboard](#-view-interactive-dashboard-in-looker-studio)
+* [❓ Problem Description](#-problem-description)
+* [🏗️ Project Architecture](#️-project-architecture)
+* [🖥️ Technologies Used](#️-technologies-used)
+* [⚙️ Data Processing Strategy: EtLT Pattern](#️-data-processing-strategy-etlt-pattern)
+* [⛏️ Data Extraction & Transformation Logic](#️-data-extraction--transformation-logic-python)
+* [📖 Data Dictionary](#-data-dictionary)
+    * [1. Fact Table: fact_prices](#1-fact-table-fact_prices)
+    * [2. Dimension Table: dim_banknotes](#2-dimension-table-dim_banknotes)
+* [🛠️ Reproducibility](#️-reproducibility)
+    * [Local Setup](#local-setup)
+    * [CI/CD Setup (GitHub Actions)](#cicd-setup-github-actions)
+* [🧪 Data Quality Tests](#-data-quality-tests)
+* [🔮 Future Improvements](#-future-improvements)
+* [🪐 About the Author](#-about-the-author)
+
 ## 📊 View Interactive Dashboard in Looker Studio
 Explore the final data visualization, featuring dynamic filtering by century, historical status, and currency unit.
 
@@ -28,7 +45,6 @@ The pipeline follows the Modern Data Stack approach:
 6. Automation: GitHub Actions runs the pipeline twice a month (1st and 15th).
 7. Visualization: Looker Studio for interactive dashboards.
 
-![Pipeline Diagram](/diagrams/DE%20Zoomcamp%20Pipeline.jpg)
 
 ## 🖥️ Technologies Used
 
@@ -41,24 +57,37 @@ The pipeline follows the Modern Data Stack approach:
 * GitHub Actions (CI/CD and Scheduling)
 * Looker Studio (Visualization)
 
+## ⚙️ Data Processing Strategy: EtLT Pattern
+
+This project implements an **EtLT** (Extract, small-t transform, Load, Big-T Transform) architecture, which is a modern hybrid approach to data engineering:
+
+1.  **Extract & "t" (Python Transformation)**: Due to the unstructured nature of web-scraped data, initial cleaning is performed using Python. The [clean_raw_data.py](https://github.com/Camila20197/numismatic-analysis-de-zoomcamp-project/blob/main/src/clean_raw_data.py) script utilizes **Regular Expressions (Regex)** to parse complex titles into structured fields (Country, Year, Denomination) and generates deterministic unique IDs.
+2.  **Load (GCS)**: These semi-structured CSV files are then loaded into **Google Cloud Storage**, serving as a staging area.
+3.  **"T" (BigQuery & dbt Transformation)**: Once the data is in **BigQuery**, **dbt** takes over the heavy lifting. This stage involves final dimensional modeling (Star Schema) and data quality enforcement, materializing the final `dim_banknotes` and `fact_prices` tables for analysis.
+
+**Why EtLT?** This pattern was chosen because Python provides superior flexibility for string manipulation and data parsing during the initial cleaning phase, while BigQuery and dbt offer unmatched scalability and performance for final analytical modeling.
+
+![Pipeline Diagram](/diagrams/DE%20Zoomcamp%20Pipeline.jpg)
+
 ## ⛏️ Data Extraction & Transformation Logic (Python)
 A significant portion of this project relies on robust Python scripting to handle unstructured web data:
 
-* Asynchronous Web Scraping: Using aiohttp and BeautifulSoup4, the get_raw_data.py script efficiently navigates pagination with semaphore limits to avoid server overloads while extracting raw HTML.
-* Regex Parsing & Business Logic: The clean_raw_data.py script uses advanced Regular Expressions and dictionary mappings to extract details from messy product titles. It correctly identifies historical entities (e.g., distinguishing between existing countries and historical colonies like "Indochina Francesa"), normalizes currencies, and parses condition grades (UNC, XF, VF).
+* Asynchronous Web Scraping: Using aiohttp and BeautifulSoup4, the [get_raw_data.py](https://github.com/Camila20197/numismatic-analysis-de-zoomcamp-project/blob/main/src/get_raw_data.py) script efficiently navigates pagination with semaphore limits to avoid server overloads while extracting raw HTML.
+* Regex Parsing & Business Logic: The [clean_raw_data.py](https://github.com/Camila20197/numismatic-analysis-de-zoomcamp-project/blob/main/src/clean_raw_data.py) script uses advanced Regular Expressions and dictionary mappings to extract details from messy product titles. It correctly identifies historical entities (e.g., distinguishing between existing countries and historical colonies like "Indochina Francesa"), normalizes currencies, and parses condition grades (UNC, XF, VF).
 * Idempotency & Snapshot Tracking: The script generates a deterministic MD5 hash (generate_primary_key) for each unique banknote and a snapshot_id for every price extraction. This ensures the pipeline can run multiple times without duplicating core dimensions, while appending new historical prices accurately.
 
 ## 📖 Data Dictionary
 
 This project utilizes a dimensional modeling approach, Star Schema, to organize the scraped numismatic data efficiently for analysis.
 
-### 1. Fact Table: `fact_prices`
-This table acts as the core of our analytical model. It captures the quantitative market data and tracks the valuation of banknotes over time, allowing for historical price analysis. The relationship between the tables is defined as follows:
-
 * One-to-Many Relationship (1:N): A single record in dim_banknotes (the parent table) can be associated with multiple records in fact_prices (the child table).
 * Foreign Key Mapping: The banknote_id serves as the primary key in the dimension table and as a foreign key in the fact table.
 
 ![Entity Relationship Diagram](/diagrams/DE%20Zomcamp%20ER.jpeg)
+
+
+### 1. Fact Table: `fact_prices`
+This table acts as the core of our analytical model. It captures the quantitative market data and tracks the valuation of banknotes over time, allowing for historical price analysis. The relationship between the tables is defined as follows:
 
 
 | Variable | Data Type | Description |
@@ -89,45 +118,77 @@ This dimension table stores all the descriptive, historical, and categorical att
 ### Local Setup
 To run this project on your local machine, follow these steps:
 
-1. Prerequisites:
+#### Prerequisites
 
-    * Install uv for Python dependency management.
-    * Install Terraform.
-    * A Google Cloud Project with a Service Account JSON key.
+Before proceeding, ensure you have the following installed and configured. Refer to the official documentation for detailed installation guides:
 
-2. Clone the repository:
+* [Python](https://www.python.org/downloads/?hl=ES): Version 3.12 or more The core programming language.
+* [uv](https://docs.astral.sh/uv/): A fast Python package and dependency manager.
+* [Terraform](https://developer.hashicorp.com/terraform/docs): Used for provisioning GCP infrastructure.
+* [Prefect](https://docs.prefect.io/):  orchestration tool.
+* [Google Cloud Account](https://cloud.google.com/docs): With a project, billing enabled, and a Service Account JSON key.
+* [dbt (Core)](https://docs.getdbt.com/): Installed and available in your environment.
 
-    1. git clone https://github.com/your-username/numismatic-analysis.git
-    2. numismatic-analysis
+#### Step A: Clone the repository
 
-3. Infrastructure Provisioning:
-Navigate to your Terraform folder and apply the configuration to create the GCP resources:
+```bash
+git clone https://github.com/your-username/numismatic-analysis.git
+```
 
-    1. cd terraform
-    2. terraform init
-    3. terraform apply
-    4. cd ..
+#### Step B: Infrastructure Provisioning with Terraform
+Navigate to the terraform directory and apply the configuration to create the required GCS buckets and BigQuery datasets.
 
-4. Install dependencies:
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
 
-    * uv sync
+After confirmation, you can navigate back to the root:
 
-5. Environment Variables:
+```bash
+cd ..
+```
+#### Step C: Install Dependencies and Set Up Environment
+Install all necessary Python libraries using uv:
+```bash
+uv sync
+```
 Create a .env file or export your GCP credentials and bucket names:
 
-    1. export NUMISMATIC_BUCKET="your-gcs-bucket-name"
-    2. export NUMISMATIC_RAW="raw_banknotes.csv"
-    3. export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/gcp-key.json"
+```bash
+export NUMISMATIC_BUCKET="your-gcs-bucket-name"
+export NUMISMATIC_RAW="raw_banknotes.csv"
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/gcp-key.json"
+```
+#### Step D: Authenticate with Prefect Cloud
+Ensure your local environment can communicate with Prefect Cloud by logging in and setting your active workspace:
 
-6. Run the Pipeline:
+```bash
+prefect cloud login -k YOUR_PREFECT_API_KEY
+prefect cloud workspace set --workspace "your-handle/your-workspace-name"
+```
 
-    1. uv run src/get_raw_data.py
-    2. uv run src/clean_raw_data.py
+#### Step E: Run the Data Pipeline (Prefect Flows)
+Execute the scraping and cleaning processes managed by Prefect:
+```bash
+cd src
+uv run src/get_raw_data.py
+uv run src/clean_raw_data.py
+```
 
-7. Run dbt Transformations:
+After run, you can navigate back to the root:
+```bash
+cd ..
+```
 
-    1. cd transform_numismatic
-    2. dbt build
+#### Step F: Execute dbt Transformations
+Move to the transform_numismatic directory to build the dimensional models.
+```bash
+cd transform_numismatic
+dbt build
+```
 
 ### CI/CD Setup (GitHub Actions)
 To automate the pipeline in the cloud:
