@@ -2,8 +2,8 @@ name: Get money bill's data
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 11 1,15 * *' # Run on the 1st and 15th of every month at 11:30 AM UTC
+  #schedule:
+    #- cron: '30 11 1,15 * *' # Run on the 1st and 15th of every month at 11:30 AM UTC
   push:
     branches:
       - run-prefect-with-actions
